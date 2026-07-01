@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  password      String
+  name          String
+  riskScore     Int         @default(5) // 1-10 scale
+  riskProfile   String      @default("moderate") // conservative, moderate, aggressive
+  portfolios    Portfolio[]
+  goals         Goal[]
+  riskAnswers   Json?       // Store questionnaire answers
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Portfolio {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  targetAllocation Json        // { "US_STOCKS": 40, "INTL_STOCKS": 20, "BONDS": 30, "CASH": 10 }
+  currentValue     Decimal     @default(0)
+  totalInvested    Decimal     @default(0)
+  totalGain        Decimal     @default(0)
+  holdings         Holding[]
+  rebalances       Rebalance[]
+  transactions     Transaction[]
+  isActive         Boolean     @default(true)
+  lastRebalanced   DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model Holding {
+  id            String      @id @default(cuid())
+  portfolioId   String
+  portfolio     Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  symbol        String      // e.g., "VTI", "VXUS", "BND"
+  name          String      // Full name of the security
+  shares        Decimal
+  avgCostBasis  Decimal     // Average cost per share
+  currentPrice  Decimal     @default(0)
+  marketValue   Decimal     @default(0)
+  gainLoss      Decimal     @default(0)
+  gainLossPct   Decimal     @default(0)
+  assetClass    String      // US_STOCKS, INTL_STOCKS, BONDS, CASH, REAL_ESTATE, COMMODITIES
+  sector        String?
+  lastUpdated   DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Transaction {
+  id            String      @id @default(cuid())
+  portfolioId   String
+  portfolio     Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  type          String      // BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL
+  symbol        String?
+  shares        Decimal?
+  pricePerShare Decimal?
+  totalAmount   Decimal
+  fees          Decimal     @default(0)
+  notes         String?
+  executedAt    DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+}
+
+model Rebalance {
+  id            String      @id @default(cuid())
+  portfolioId   String
+  portfolio     Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  status        String      @default("pending") // pending, approved, executed, cancelled
+  beforeAlloc   Json        // Allocation before rebalance
+  afterAlloc    Json        // Target allocation after rebalance
+  trades        Json        // Array of proposed trades
+  taxImpact     Decimal     @default(0)
+  estimatedCost Decimal     @default(0)
+  executedAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Goal {
+  id              String      @id @default(cuid())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  type            String      // RETIREMENT, HOUSE, EDUCATION, EMERGENCY, CUSTOM
+  targetAmount    Decimal
+  currentAmount   Decimal     @default(0)
+  monthlyContrib  Decimal     @default(0)
+  targetDate      DateTime
+  priority        Int         @default(1)
+  successProb     Float       @default(0) // Monte Carlo success probability
+  projectedAmount Decimal     @default(0)
+  riskLevel       String      @default("moderate")
+  isCompleted     Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model MarketData {
+  id            String      @id @default(cuid())
+  symbol        String      @unique
+  name          String
+  currentPrice  Decimal
+  change        Decimal
+  changePct     Decimal
+  high52Week    Decimal?
+  low52Week     Decimal?
+  marketCap     Decimal?
+  peRatio       Decimal?
+  dividendYield Decimal?
+  lastUpdated   DateTime    @default(now())
+}
+
+model TaxLot {
+  id            String      @id @default(cuid())
+  holdingId     String
+  purchaseDate  DateTime
+  shares        Decimal
+  costBasis     Decimal
+  isWashSale    Boolean     @default(false)
+  soldDate      DateTime?
+  soldPrice     Decimal?
+  realizedGain  Decimal?
+  createdAt     DateTime    @default(now())
+}
